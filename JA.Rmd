@@ -82,14 +82,16 @@ rfTesting1 <- rfTraining[-rf_inTrain,]
 Finally we arrive to the Algorithms phase
 
 ##ML algortithms
-Using two algorithms *Decision Trees* and *Random Forests* it will be possible to figure out if one of these is able to provide a successfull predictive function.
+Using two algorithms *Decision Trees*, *Generalized Boosted Regression* and *Random Forests* it will be possible to figure out if one of these is able to provide a successfull predictive function.
 
-###First the Classification Tree
+###Decision Tree
 ```{r}
 set.seed(1)
 modFitA1 <- rpart(classe ~ ., 
                   data=dtTraining1, 
                   method="class")
+#The resulting Decision Tree
+fancyRpartPlot(modFitA1)
 predictionsA1 <- predict(modFitA1, dtTesting1, type = "class")
 ```
 The final Accuracy is `r confusionMatrix(predictionsA1, dtTesting1$classe)$overall[1]`
@@ -97,7 +99,28 @@ The final Accuracy is `r confusionMatrix(predictionsA1, dtTesting1$classe)$overa
 ```{r}
 confusionMatrix(predictionsA1, dtTesting1$classe)
 ```
+###Generalized Boosted Regression
+
+I will use the same dataset (rfTraining1) as the one used with the Decision Tree (to verify that the Decision Tree wasn't the best model)
+
+```{r}
+set.seed(1)
+modFitGBR <- train(rfTraining1$classe ~ ., 
+                method="gbm", 
+                preProcess=c("center", "scale"), 
+                trControl=trainControl(method = "repeatedcv", 
+                                       number = 10), 
+                data=rfTraining1)
+print(modFitGBR)
+```
+Let's look at the predictions with the *Random Forests*
+```{r}
+predictions <- predict(modFitGBR, newdata=rfTesting1)
+print(confusionMatrix(predictions, rfTesting1$classe))
+```
+
 ###Random Forests
+
 ```{r}
 set.seed(1)
 modFit <- train(rfTraining1$classe ~ ., 
@@ -117,10 +140,10 @@ The Accuracy is `r confusionMatrix(predictions, rfTesting1$classe)$overall[1]`
 
 ###Apply to the Testing SET
 
-The testing datasource is the one without any help, the class variable is missing so we must trust on our bet model.
+The testing datasource is the one without any help, the class variable is missing so we must trust on our best model.
 The accuracy obtained with the Random forests is so good with a out of sample error really small `r 1 - (confusionMatrix(predictions, rfTesting1$classe)$overall[1])`
 
-Let's take a llok at our predictions
+Let's take a look at our predictions
 
 ```{r}
 colu <- names(newTraining)
