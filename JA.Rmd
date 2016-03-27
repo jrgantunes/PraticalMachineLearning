@@ -1,0 +1,135 @@
+#PRACTICAL MACHINE LEARNING COURSE PROJECT
+**Author**: Jorge Antunes
+**Date**: 27/03/2016
+This is the final project of the Practical Machine Learning from Johns Hopkins University.
+The code was tested on OS Win 10 and RStudio Version 0.99.491
+In order to fulfill the requirements I've followed the available information through the course and the data mining notes from the NOVA IMS.
+
+##Synopsis / Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+##Introduction
+Looking for the Question: **how well they do it**.
+Five Classes were presented by the datasources A;B;C;D and E. Only Class A is refering to the execution as specified, the remaining classes refer to common mistakes.
+
+Through processing the data it will be possible to understand if the participants are performing well or not the exercises.
+
+##Pratical Part
+###Load the Data
+The first step is to load the data and the packages
+```{r}
+library(AppliedPredictiveModeling)
+library(caret)
+library(rattle)
+library(rpart.plot)
+library(randomForest)
+```
+In order to save the data in your local disk, you must use the **setwd()** function
+```{r echo = FALSE}
+setwd("C:/Users/Jorge/Google Drive/Jorge/DataScience_Specialization/PracticalMachineLear")
+```
+*INPUT DATA:*
+```{r}
+download.file(url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",
+              destfile = "pml-training.csv")
+download.file(url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",
+              destfile = "pml-testing.csv")
+# Import the data treating empty values as NA.
+training <- read.csv("pml-training.csv", na.strings=c("NA",""), header=TRUE)
+testing <- read.csv("pml-testing.csv", na.strings=c("NA",""), header=TRUE)
+```
+
+### Perform the first Pre-Process task
+####I want to remove all the columns that have more than 95% NAs
+```{r}
+toEliminate <- vector("list",length(training))
+for(i in 1:length(training)) {
+        if( sum( is.na(training[,i])) / nrow(training) >= 0.95) {
+                toEliminate[i] <- names(training)[i]
+                        }   
+                } 
+        
+varsToKeep <- !(names(training) %in% toEliminate)
+newTraining <- training[,varsToKeep]
+```
+I also want to remove the variables that don't add any value, once covariance equals to zero
+```{r}
+nzv <- nearZeroVar(newTraining, saveMetrics=TRUE)
+newTraining <- newTraining[,nzv$nzv == FALSE,]
+```
+The remaining variables the first 6 also doesn't provide any value to the Prediction model
+```{r}
+newTraining <- newTraining[,-c(1:6)]
+```
+I'll divide the training dataset in two, one to be processed with Decision Trees and the other with Random Forests
+```{r}
+set.seed(1)
+toDivide <- createDataPartition(y=newTraining$classe, p=0.5, list=FALSE)
+#The dataset to be used in the Decision Trees
+dtTraining <- newTraining[toDivide,]
+#The dataset to be used in the Random Forests
+rfTraining <- newTraining[-toDivide,]
+#Now let's divide both training sets into training and testing
+set.seed(1)
+dt_inTrain <- createDataPartition(y=dtTraining$classe, p=0.6, list=FALSE)
+dtTraining1 <- dtTraining[dt_inTrain,]
+dtTesting1 <- dtTraining[-dt_inTrain,]
+set.seed(1)
+rf_inTrain <- createDataPartition(y=rfTraining$classe, p=0.6, list=FALSE)
+rfTraining1 <- rfTraining[rf_inTrain,]
+rfTesting1 <- rfTraining[-rf_inTrain,]
+```
+Finally we arrive to the Algorithms phase
+
+##ML algortithms
+Using two algorithms *Decision Trees* and *Random Forests* it will be possible to figure out if one of these is able to provide a successfull predictive function.
+
+###First the Classification Tree
+```{r}
+set.seed(1)
+modFitA1 <- rpart(classe ~ ., 
+                  data=dtTraining1, 
+                  method="class")
+predictionsA1 <- predict(modFitA1, dtTesting1, type = "class")
+```
+The final Accuracy is `r confusionMatrix(predictionsA1, dtTesting1$classe)$overall[1]`
+
+```{r}
+confusionMatrix(predictionsA1, dtTesting1$classe)
+```
+###Random Forests
+```{r}
+set.seed(1)
+modFit <- train(rfTraining1$classe ~ ., 
+                method="rf", 
+                preProcess=c("center", "scale"), 
+                trControl=trainControl(method = "cv", 
+                                       number = 10), 
+                data=rfTraining1)
+print(modFit)
+```
+Let's look at the predictions with the *Random Forests*
+```{r}
+predictions <- predict(modFit, newdata=rfTesting1)
+print(confusionMatrix(predictions, rfTesting1$classe))
+```
+The Accuracy is `r confusionMatrix(predictions, rfTesting1$classe)$overall[1]`
+
+###Apply to the Testing SET
+
+The testing datasource is the one without any help, the class variable is missing so we must trust on our bet model.
+The accuracy obtained with the Random forests is so good with a out of sample error really small `r 1 - (confusionMatrix(predictions, rfTesting1$classe)$overall[1])`
+
+Let's take a llok at our predictions
+
+```{r}
+colu <- names(newTraining)
+colu <- colu[-53]
+newTesting <- testing[,colu]
+final <- predict(modFit, newdata=newTesting)
+```
+The final prediction is
+
+```{r}
+print(final)
+```
